@@ -1,0 +1,70 @@
+version: '3.6'
+services:
+  web:
+    image: nginx:latest
+    volumes:
+      - ./conf:/etc/nginx/conf.d/
+      - ./src:/var/www/html
+      - ./logs/web:/var/log/nginx
+    depends_on:
+      - php
+    labels:
+      - "traefik.enable=true"
+      - "traefik.myphp.passHostHeader=true"
+      ## HTTP Routers
+      - "traefik.http.routers.myphp.entrypoints=http"
+      - "traefik.http.routers.myphp.rule=Host(${HOSTNAME})"
+      ## Middlewares
+      - "traefik.http.middlewares.myphp-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.myphp.middlewares=chrome-https-redirect"
+      - "traefik.http.routers.myphp-secure.entrypoints=https"
+      - "traefik.http.routers.myphp-secure.rule=Host(${HOSTNAME})"
+      - "traefik.http.routers.myphp-secure.tls=true"
+      - "traefik.http.routers.myphp-secure.service=myphp"
+      ## HTTP Services
+      - "traefik.http.routers.myphp.service=myphp"
+      - "traefik.http.services.myphp.loadbalancer.server.port=80"
+      ## Traefik Docker Network
+      - "traefik.docker.network=proxy"
+    restart: unless-stopped
+    networks:
+      - internal
+      - proxy
+
+  # Use perbuild Image
+  php:
+    image: manh21/php7.3-fpm
+    volumes:
+      - ./src:/var/www/html
+      - ./logs/fpm:/var/log/php-fpm 
+      #- ./php:/usr/local/etc/php
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+    networks:
+      - mysqldb
+      - internal
+
+  # Build Your own image
+  # php-build:
+  #   build:
+  #     context: ./php
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - sshproject:/var/www/html
+  #     - ./logs/fpm:/var/log/php-fpm 
+  #     #- ./php:/usr/local/etc/php
+  #   labels:
+  #     - "traefik.enable=false"
+  #   restart: unless-stopped
+  #   networks:
+  #     - mysqldb
+  #     - internal
+
+networks:
+  mysqldb:
+    external: true
+  proxy:
+    external: true
+  internal:
+    name: internal
